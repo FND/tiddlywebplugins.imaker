@@ -20,6 +20,12 @@ from tiddlyweb.util import sha
 
 from tiddlywebplugins.utils import get_store
 
+try:
+    from tiddlywebplugins.pkgstore import ReadOnlyError
+except ImportError:
+    class ReadOnlyError:
+        pass
+
 
 __version__ = '0.1.3'
 CONFIG_NAME = 'tiddlywebconfig.py'
@@ -104,7 +110,7 @@ class Instance(object):
             for bag in source_store.list_bags():
                 for tiddler in source_store.list_bag_tiddlers(bag):
                     tiddler = source_store.get(tiddler)
-                    store.put(tiddler)
+                    _put(store, tiddler)
         os.chdir(cwd)
 
     def _init_store(self, struct):
@@ -121,7 +127,7 @@ class Instance(object):
             bag = Bag(name, desc=desc)
             constraints = data.get("policy", {})
             _set_policy(bag, constraints)
-            store.put(bag)
+            _put(store, bag)
 
         recipes = struct.get("recipes", {})
         for name, data in recipes.items():  # TODO: DRY
@@ -130,7 +136,7 @@ class Instance(object):
             recipe.set_recipe(data["recipe"])
             constraints = data.get("policy", {})
             _set_policy(recipe, constraints)
-            store.put(recipe)
+            _put(store, recipe)
 
         users = struct.get("users", {})
         for name, data in users.items():
@@ -141,7 +147,7 @@ class Instance(object):
                 user.set_password(password)
             for role in data.get("roles", []):
                 user.add_role(role)
-            store.put(user)
+            _put(store, user)
 
     def _write_config(self):
         """
@@ -200,3 +206,10 @@ def _pretty_format(dic):
             return value
     lines = ("    '%s': %s" % (k, escape_strings(v)) for k, v in dic.items())
     return "{\n%s,\n}" % ",\n".join(lines)
+
+
+def _put(store, entity):
+    try:
+        store.put(entity)
+    except ReadOnlyError:
+        print "not copying %s due to store being read-only" % entity
